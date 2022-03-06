@@ -17,6 +17,9 @@ $servername = "localhost";
 $username = "root";
 $password = "";
 $database = "wordpress";
+$table = "backup_ts";
+
+$excludeList = [".", "..", ".git"];
 
 // Create connection
 $conn = new mysqli($servername, $username, $password, $database);
@@ -30,10 +33,11 @@ echo "Connected successfully<br>";
 
 
 function recur(string $path, array &$files) {
+    $excludeList = $GLOBALS["excludeList"];
     if(is_dir($path)) {
         $dirIter = new DirectoryIterator($path);
         foreach ($dirIter as $curr) {
-            if($curr == '.' || $curr == "..") {
+            if(in_array($curr, $excludeList)) {
                 continue;
             }
             $nowPath = $path . '/' .  $curr;
@@ -54,8 +58,9 @@ function recur(string $path, array &$files) {
 function listDir(string $path) {
     $dirIter = new DirectoryIterator($path);
     $files = array();
+    $excludeList = $GLOBALS["excludeList"];
     foreach ($dirIter as $curr) {
-        if($curr == '.' || $curr == "..") {
+        if(in_array($curr, $excludeList)) {
             continue;
         }
         $nowPath = $path . '/' .  $curr;
@@ -68,9 +73,8 @@ function listDir(string $path) {
     foreach($files as $currFile) {
         clearstatcache();
         $lastMod = filemtime($currFile);
+        print($currFile . "<br>");
         check($currFile, $lastMod);
-        print($lastMod);
-        print("<br>");
     }
     //print(implode("<br>", $files));
     //print("<br>");
@@ -78,40 +82,47 @@ function listDir(string $path) {
 }
 
 function check(string $fname, int $modTime) {
-    $conn = $GLOBALS['conn'];
-    $database = "wordpress";
-    $table = "backup_ts";
-    $lastModTimeSql = "SELECT lastUpdated FROM $database.$table where fname='$fname'";
+    $conn = $GLOBALS["conn"];
+    $database = $GLOBALS["database"];
+    $table = $GLOBALS["table"];
+    $lastModTimeSql = "SELECT * FROM $database.$table where fname='$fname'";
     $res = $conn->query($lastModTimeSql);
     if ($res->num_rows > 0) {
         // output data of each row
+        print(gettype($res) . "<br>");
         while($row = $res->fetch_assoc()) {
             $fname = $row["fname"];
             $lastUpdated = $row["lastUpdated"];
             if($lastUpdated < $modTime) {
                 print("Updating last ts for file: $fname");
+                print("<br>");
                 $sql = "UPDATE $database.$table SET lastUpdated=$modTime where fname='$fname'";
                 $res = $conn->query($sql);
                 if ($res === TRUE) {
                     echo "Last update ts for $fname updated";
+                    print("<br>");
                 } else {
                     echo "Error: " . $sql . "<br>" . $conn->error;
+                    print("<br>");
                 }
             }
         }
     } else {
         print("Tracking new file: $fname");
+        print("<br>");
         $sql = "INSERT INTO $database.$table values ('$fname', $modTime);";
         $res = $conn->query($sql);
         if ($res === TRUE) {
             echo "Tracking $fname successfully";
+            print("<br>");
         } else {
             echo "Error: " . $sql . "<br>" . $conn->error;
+            print("<br>");
         }
     }
 }
 
-listDir("../");
+listDir("..");
 $conn->close();
 
 
