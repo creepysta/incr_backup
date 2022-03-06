@@ -25,7 +25,7 @@ $conn = new mysqli($servername, $username, $password, $database);
 if ($conn->connect_error) {
   die("Connection failed: " . $conn->connect_error);
 }
-echo "Connected successfully";
+echo "Connected successfully<br>";
 
 
 
@@ -66,18 +66,53 @@ function listDir(string $path) {
         }
     }
     foreach($files as $currFile) {
-        print(filemtime($currFile));
+        clearstatcache();
+        $lastMod = filemtime($currFile);
+        check($currFile, $lastMod);
+        print($lastMod);
         print("<br>");
     }
-    print(implode("<br>", $files));
-    print("<br>");
+    //print(implode("<br>", $files));
+    //print("<br>");
     return $files;
 }
 
-function check(string $fname) {
+function check(string $fname, int $modTime) {
+    $conn = $GLOBALS['conn'];
+    $database = "wordpress";
+    $table = "backup_ts";
+    $lastModTimeSql = "SELECT lastUpdated FROM $database.$table where fname='$fname'";
+    $res = $conn->query($lastModTimeSql);
+    if ($res->num_rows > 0) {
+        // output data of each row
+        while($row = $res->fetch_assoc()) {
+            $fname = $row["fname"];
+            $lastUpdated = $row["lastUpdated"];
+            if($lastUpdated < $modTime) {
+                print("Updating last ts for file: $fname");
+                $sql = "UPDATE $database.$table SET lastUpdated=$modTime where fname='$fname'";
+                $res = $conn->query($sql);
+                if ($res === TRUE) {
+                    echo "Last update ts for $fname updated";
+                } else {
+                    echo "Error: " . $sql . "<br>" . $conn->error;
+                }
+            }
+        }
+    } else {
+        print("Tracking new file: $fname");
+        $sql = "INSERT INTO $database.$table values ('$fname', $modTime);";
+        $res = $conn->query($sql);
+        if ($res === TRUE) {
+            echo "Tracking $fname successfully";
+        } else {
+            echo "Error: " . $sql . "<br>" . $conn->error;
+        }
+    }
+}
 
 listDir("../");
-
+$conn->close();
 
 
 
